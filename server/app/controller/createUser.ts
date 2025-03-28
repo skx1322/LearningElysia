@@ -1,6 +1,8 @@
 import imageUploadCall from "../middleware/cloudinary";
 import bcrypt from "bcryptjs"
 import UserModel from "../model/user.model";
+
+
 export async function CreateTest(body: { name: string, avatar: File }) {
     try {
         const { name, avatar } = body;
@@ -66,6 +68,51 @@ export async function CreateUser(body: { name: string, email: string, password: 
             output: saveUser,
         }
 
+    } catch (error) {
+        return {
+            success: false,
+            status: 500,
+            message: "Server Error",
+            output: error,
+        }
+    }
+}
+
+export async function LoginUser(body: { email: string, password: string }) {
+    try {
+        const { email, password } = body;
+
+        if (!email || !password) {
+            return {
+                success: false,
+                status: 400,
+                message: "Missing email or password",
+            };
+        };
+        const userFind = await UserModel.findOne({
+            email,
+        })
+        if (!userFind) {
+            return {
+                success: false,
+                status: 400,
+                message: "No email found in the database",
+            };
+        };
+        const checkPassword = await bcrypt.compare(password, userFind.password);
+        if (!checkPassword) {
+            return {
+                success: false,
+                status: 400,
+                message: "Invalid password",
+            };
+        };
+
+        return {
+            success: true,
+            status: 200,
+            message: "Successfully login!"
+        }
     } catch (error) {
         return {
             success: false,
