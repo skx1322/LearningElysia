@@ -33,11 +33,11 @@ export const router = new Elysia()
             avatar: t.File(),
         })
     })
-    .post("/LoginUser", ({ body }) => LoginUser(body), {
+    .post("/LoginUser", ({ body, jwt, cookie: { auth } }) => LoginUser(body), {
         body: t.Object({
             email: t.String(),
             password: t.String(),
-        })
+        }),      
     })
     .get("/sercret", () => `
     <html lang='en'>
@@ -48,30 +48,48 @@ export const router = new Elysia()
             <img src="https://res.cloudinary.com/dgz1kyztu/image/upload/v1742913681/typescript-project/ublwd6ry1ys0duoii2c6.png"></img>
         </body>
     </html>
-`) // trying to figure out the cookie 💀
-.get("/getCookieJwt/:name", async({ jwt, params: {name}, cookie: {auth} })=>{
-    const value = await jwt.sign({name});
-    auth.set({
-        value,
-        httpOnly: true,
-        maxAge: 5 * 60,
-    }) 
-    console.log(name);
-    return `Sign in as ${value}`;
-},{
-    params: t.Object({
-        name: t.String(),
+`)
+    .get("/getCookieJwt/:name", async ({ jwt, params: { name }, cookie: { auth } }) => 
+        {
+        const value = await jwt.sign({ name });
+        auth.set({
+            value,
+            httpOnly: true,
+            maxAge: 5 * 60,
+        })
+        console.log(name);
+        return `Sign in as ${value}`;
+    },{
+        params: t.Object({
+            name: t.String(),
+        })
     })
-})
 
-.get("/removeCookieJwt", async({jwt, error, cookie: {auth}})=>{
-    const profile = await jwt.verify(auth.value);
+    .get("/secretPage", async ({ jwt, error, cookie: { auth } }) => {
+        const checker = await jwt.verify(auth.value)
+        if (!checker) {
+            return error(401, `Unauthorized`);
+        };
+        return `
+    <html lang='en'>
+        <head>
+            <title>Hello World</title>
+        </head>
+        <body>
+            <img src="https://res.cloudinary.com/dgz1kyztu/image/upload/v1742913681/typescript-project/ublwd6ry1ys0duoii2c6.png"></img>
+        </body>
+    </html>
+`
+    })
 
-    if(!profile){
-        return error(401, `Unauthorized`);
-    }
+    .get("/removeCookieJwt", async ({ jwt, error, cookie: { auth } }) => {
+        const profile = await jwt.verify(auth.value);
 
-    auth.remove()
-})
+        if (!profile) {
+            return error(401, `Unauthorized`);
+        }
 
- //test cookie
+        auth.remove()
+    })
+
+//test cookie

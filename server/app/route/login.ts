@@ -1,62 +1,127 @@
-// import { Elysia, t } from "elysia";
-// import { cookie } from "@elysiajs/cookie";
-// import { jwt } from "@elysiajs/jwt";
-// import { randomUUID } from "crypto";
+import { Elysia, t } from "elysia";
+import { CreateTest, CreateUser, LoginUser } from "../controller/createUser";
+import { html, Html } from '@elysiajs/html'
+import { jwt } from "@elysiajs/jwt";
+import UserModel from "../model/user.model";
+import bcrypt from "bcryptjs"
+import { ObjectId } from "mongoose";
+import imageUploadCall from "../middleware/cloudinary";
 
-// const users = {
-//   skx1322: "nerdanta1322",
-// };
+export const loginPage = new Elysia()
+    .use(html())
+    .use(jwt({
+        name: 'jwt',
+        secret: "Nerdanta",
+        exp: "15m",
+    }))
+    .post("/LoginCall", async ({ body, jwt, cookie: { auth }, set }) => {
+        try {
+            const { email, password } = body;
+            if (!body) {
+                set.status = 400;
+                return {
+                    success: false,
+                    message: "Missing email or password."
+                };
+            }
+            const userFind = await UserModel.findOne({
+                email,
+            })
+            if (!userFind) {
+                set.status = 400;
+                return {
+                    success: false,
+                    message: "User not found."
+                }
+            }
+            const passwordChecker = await bcrypt.compare(password, userFind.password);
+            if (!passwordChecker) {
+                set.status = 401;
+                return {
+                    success: false,
+                    message: "Incorrect password."
+                }
+            }
+            const ID = userFind._id.toString();
+            const cookieToken = await jwt.sign({ ID });
 
-// const tokens = new Map<string, { expires: number }>();
+            auth.set({
+                value: cookieToken,
+                httpOnly: true,
+                secure: true,
+                maxAge: 15 * 60,
+            });
+            set.status = 200;
+            
+            return {
+                success: true,
+                message: "Successfully login.",
+                output: userFind.username,
+            };
+        } catch (error) {
+            set.status = 500;
+            return {
+                success: true,
+                message: "Server encountered an issue.",
+                output: error,
+            };
+        }
+    }, {
+        body: t.Object({
+            email: t.String(),
+            password: t.String(),
+        })
+    })
+    .put("/UpdateAccount", async({body, jwt, cookie: {auth}, set})=>{
+        const checkerAuth = await jwt.verify(auth.value)
+        if (!checkerAuth) {
+            set.status = 401;
+            return {
+                success: false,
+                message: "Unauthorized access."
+            }
+        }
+        try {
+            const { name, email, avatar } = body;
+            const id = checkerAuth.ID;
+            const userFind = await UserModel.findById(id);
+            if(!userFind){
+                set.status = 400;
+                return {
+                    sucess: false,
+                    message: "No account found."
+                };
+            }
+            let updatedAvatar = userFind.avatar;
+            if(avatar){
+                const upload: any = await imageUploadCall(avatar);
+                updatedAvatar = upload.url;
+            }
+            const updatedPayload = {
+                username: name || userFind.username,
+                email: email || userFind.email,
+                avatar: updatedAvatar || userFind.avatar,
+            }
+            const updateUser = await UserModel.findByIdAndUpdate(id, updatedPayload, {new: true})
 
-// const app = new Elysia()
-//   .use(cookie())
-//   .use(
-//     jwt({
-//       name: "jwt",
-//       secret: process.env.JWT_SECRET || "your-secret-key", // Ensure to use a strong secret in production
-//     })
-//   )
-//   .post(
-//     "/login",
-//     async ({ set, cookie, body, jwt }) => {
-//       if (body.name in users && users[body.name] === body.password) {
-//         const token = randomUUID();
-//         const expires = Date.now() + 5 * 60 * 1000; // 5 minutes
-
-//         tokens.set(token, { expires });
-//         cookie.auth = token;
-//         set.cookie = {
-//           auth: {
-//             value: token,
-//             httpOnly: true,
-//             maxAge: 5 * 60, // 5 minutes in seconds
-//           },
-//         };
-
-//         return { message: "Login successful" };
-//       }
-
-//       set.status = 401;
-//       return { message: "Invalid credentials" };
-//     },
-//     {
-//       body: t.Object({
-//         name: t.String(),
-//         password: t.String(),
-//       }),
-//     }
-//   )
-//   .get("/secret", ({ cookie, set }) => {
-//     const token = cookie.auth;
-
-//     if (token && tokens.has(token) && tokens.get(token)!.expires > Date.now()) {
-//       return { secret: "This is the secret page" };
-//     }
-
-//     set.status = 401;
-//     return { message: "Unauthorized" };
-//   })
-//   .listen(3000);
-
-// console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
+            set.status = 200;
+            return {
+                success: true,
+                message: "Successfully updated user.",
+                output: updateUser,
+            }
+        } catch (error) {
+            set.status = 400;
+            return {
+                success: false,
+                message: "Something went wrong in the server.",
+                output: error,
+            }
+        }
+    },{
+        body: t.Object({
+            name: t.Optional(t.String()),
+            email: t.Optional(t.String()),
+            avatar: t.Optional(t.File()),
+        })
+    })

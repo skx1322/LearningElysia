@@ -11,7 +11,6 @@ const imageUploadCall = async (image: File) => {
     const buffer = await image.arrayBuffer();
     const fileBuffer = Buffer.from(buffer);
 
-    // Upload Image to Cloudinary
     const uploadResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: "typescript-project" },
