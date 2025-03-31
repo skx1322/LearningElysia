@@ -10,16 +10,6 @@ export const router = new Elysia()
         secret: "Nerdanta",
         exp: "5m",
     }))
-    .get("/", () => `
-            <html lang='en'>
-                <head>
-                    <title>Hello World</title>
-                </head>
-                <body>
-                    <h1>Elysia</h1>
-                </body>
-            </html>
-    `)
     .post("/createTest", ({ set, body }) => CreateTest(body), {
         body: t.Object({
             name: t.String(),

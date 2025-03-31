@@ -1,20 +1,21 @@
 import { Elysia, t } from "elysia";
-import { CreateTest, CreateUser, LoginUser } from "../controller/createUser";
 import { html, Html } from '@elysiajs/html'
 import { jwt } from "@elysiajs/jwt";
 import UserModel from "../model/user.model";
 import bcrypt from "bcryptjs"
-import { ObjectId } from "mongoose";
 import imageUploadCall from "../middleware/cloudinary";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const loginPage = new Elysia()
-    .use(html())
     .use(jwt({
         name: 'jwt',
-        secret: "Nerdanta",
-        exp: "15m",
+        secret: process.env.TOKEN_SECRET || "Nerdanta",
+        exp: "1d",
     }))
-    .post("/LoginCall", async ({ body, jwt, cookie: { auth }, set }) => {
+
+    .post("/LoginAccount", async ({ body, jwt, cookie: { auth }, set }) => {
         try {
             const { email, password } = body;
             if (!body) {
@@ -49,10 +50,10 @@ export const loginPage = new Elysia()
                 value: cookieToken,
                 httpOnly: true,
                 secure: true,
-                maxAge: 15 * 60,
+                maxAge: 24 * 3600,
             });
             set.status = 200;
-            
+
             return {
                 success: true,
                 message: "Successfully login.",
@@ -72,7 +73,58 @@ export const loginPage = new Elysia()
             password: t.String(),
         })
     })
-    .put("/UpdateAccount", async({body, jwt, cookie: {auth}, set})=>{
+
+    .post("/Logout", async ({ jwt, cookie: { auth }, set }) => {
+        try {
+            const checkerAuth = await jwt.verify(auth.value);
+            if (!checkerAuth) {
+                set.status = 401;
+                return {
+                    success: false,
+                    message: "Unauthorized",
+                }
+            };
+            auth.remove();
+            set.status = 200;
+            return {
+                success: true,
+                message: "Successfully logout."
+            }
+        } catch (error) {
+            set.status = 500;
+            return {
+                success: false,
+                message: "Server encountered an issue."
+            }
+        }
+    })
+
+    .post("/ExtendCookie", async ({ jwt, cookie: { auth }, set }) => {
+        const oldToken = auth.value;
+        const authChecker = await jwt.verify(oldToken);
+        if (!authChecker) {
+            set.status = 401;
+            return {
+                success: false,
+                message: "Invalid or expired token.",
+            };
+        }
+        const id = authChecker.ID
+        const newToken = await jwt.sign({ id })
+        auth.set({
+            value: newToken,
+            httpOnly: true,
+            secure: true,
+            maxAge: 24 * 3600,
+        })
+
+        return {
+            success: true,
+            message: "Token renewed."
+        }
+    })
+
+    .put("/UpdateAccount", async ({ body, jwt, cookie: { auth }, set }) => {
         const checkerAuth = await jwt.verify(auth.value)
         if (!checkerAuth) {
             set.status = 401;
@@ -85,7 +137,7 @@ export const loginPage = new Elysia()
             const { name, email, avatar } = body;
             const id = checkerAuth.ID;
             const userFind = await UserModel.findById(id);
-            if(!userFind){
+            if (!userFind) {
                 set.status = 400;
                 return {
                     sucess: false,
@@ -93,7 +145,7 @@ export const loginPage = new Elysia()
                 };
             }
             let updatedAvatar = userFind.avatar;
-            if(avatar){
+            if (avatar) {
                 const upload: any = await imageUploadCall(avatar);
                 updatedAvatar = upload.url;
             }
@@ -102,7 +154,7 @@ export const loginPage = new Elysia()
                 email: email || userFind.email,
                 avatar: updatedAvatar || userFind.avatar,
             }
-            const updateUser = await UserModel.findByIdAndUpdate(id, updatedPayload, {new: true})
+            const updateUser = await UserModel.findByIdAndUpdate(id, updatedPayload, { new: true })
 
             set.status = 200;
             return {
@@ -118,7 +170,7 @@ export const loginPage = new Elysia()
                 output: error,
             }
         }
-    },{
+    }, {
         body: t.Object({
             name: t.Optional(t.String()),
             email: t.Optional(t.String()),
