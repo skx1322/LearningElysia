@@ -163,7 +163,7 @@ export const loginPage = new Elysia()
                 output: updateUser,
             }
         } catch (error) {
-            set.status = 400;
+            set.status = 500;
             return {
                 success: false,
                 message: "Something went wrong in the server.",
@@ -176,4 +176,26 @@ export const loginPage = new Elysia()
             email: t.Optional(t.String()),
             avatar: t.Optional(t.File()),
         })
+    })
+
+    .post("/PostGallery", async ({ body, jwt, cookie: { auth }, set }) => {
+        const checkerAuth = await jwt.verify(auth.value)
+        if (!checkerAuth) {
+            set.status = 401;
+            return {
+                success: false,
+                message: "Unauthorized access."
+            }
+        }
+        try {
+            const id = checkerAuth.ID
+            
+        } catch (error) {
+            set.status = 500;
+            return {
+                success: false,
+                message: "Something went wrong in the server.",
+                output: error,
+            }
+        }
     })
